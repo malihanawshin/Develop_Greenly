@@ -4,17 +4,18 @@ const cors = require('cors');
 const app = express();
 const PORT = 3000;
 
+
 //temporary storage (replace with DB later)
 let metrics = [];
 
 app.use(cors());
 app.use(express.json());
 
-//emission estimated using simplified version of "Software Carbon Intensity (SCI)" specification by Green Software Foundation (GSF)
+//emission estimated using simplified version of Software Carbon Intensity (SCI) specification by Green Software Foundation (GSF)
 //simplified formula: CO₂ = Time × Power Draw × Carbon Intensity
-//this method does not account for idle time, actual CPU usage, or memory load.
-//assumes one CI runner (not parallel builds).
-//uses global average carbon intensity, not actual regional grid mix.
+//this method does not account for idle time, actual CPU usage or memory load
+//assumes one CI runner (not parallel builds)
+//uses global average carbon intensity, not actual regional grid mix
 
 // estimate energy (simplified): 0.05 kWh per minute on GitHub-hosted runner
 
@@ -53,7 +54,7 @@ app.post('/api/green-metrics', (req, res) => {
 
 // return metrics to dashboard
 app.get('/api/green-metrics', (req, res) => {
-  res.json(metrics.slice(-20)); // Return latest 20 entries
+  res.json(metrics.slice(-20)); // return latest 20 entries
 });
 
 app.listen(PORT, () => {
