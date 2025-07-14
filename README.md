@@ -16,15 +16,12 @@ In this project, CO2 emission is estimated using simplified version of Software 
 * Clean and minimal UI built with **React**
 * API endpoint served via a **Node.js** or compatible backend (local or tunneled using **ngrok**)
 
----
-
 ## Tech Stack
 
 * **Frontend**: React + Tailwind CSS
 * **Backend**: Node.js / Express (or compatible) serving `/api/green-metrics`
 * **Tunneling**: Ngrok (used for public API access during development)
 
----
 
 ## To Get Started
 
