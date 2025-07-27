@@ -4,9 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+<<<<<<< HEAD
     "dev": "vite",    
 "build": "node --experimental-vm-modules ./node_modules/vite/bin/vite.js build",    
 "lint": "eslint .",
+=======
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+>>>>>>> 11f99b79d4e5ee90c3f955625c23fe13667dbdd4
     "preview": "vite preview"
   },
   "dependencies": {
@@ -26,6 +32,10 @@
     "globals": "^16.3.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.11",
+<<<<<<< HEAD
     "vite": "^7.0.6"
+=======
+    "vite": "^7.0.4"
+>>>>>>> 11f99b79d4e5ee90c3f955625c23fe13667dbdd4
   }
 }
