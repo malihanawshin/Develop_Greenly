@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./green-dev-backend
+    ports:
+      - "3000:3000"
+    container_name: green-backend
+    restart: unless-stopped
+
+  frontend:
+    build: ./green-dev-dashboard
+    ports:
+      - "80:80"
+    container_name: green-frontend
+    restart: unless-stopped
