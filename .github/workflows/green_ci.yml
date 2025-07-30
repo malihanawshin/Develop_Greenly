@@ -17,7 +17,7 @@ jobs:
         id: start
         run: echo "time=$(date +%s)" >> $GITHUB_OUTPUT
 
-      # ✅ Build Backend
+      # Build Backend
       - name: Install and Build Backend
         run: |
           cd green-dev-backend
@@ -25,7 +25,7 @@ jobs:
           # Optional: run backend tests here
           node server.js &  # start the server in background
 
-      # ✅ Build Frontend
+      # Build Frontend
       - name: Install and Build Frontend
         run: |
           cd green-dev-dashboard
@@ -45,7 +45,7 @@ jobs:
 
       - name: Send Data to Green Dev Backend
         run: |
-          curl -X POST http://18.185.23.135:3000/api/green-metrics \
+          curl -X POST http://a597fa73bd7e.ngrok-free.app/api/green-metrics \
             -H "Content-Type: application/json" \
             -d '{
               "repo": "${{ github.repository }}",
