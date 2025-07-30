@@ -1,0 +1,57 @@
+name: Green CI Build
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Record Start Time
+        id: start
+        run: echo "time=$(date +%s)" >> $GITHUB_OUTPUT
+
+      # ✅ Build Backend
+      - name: Install and Build Backend
+        run: |
+          cd green-dev-backend
+          npm install
+          # Optional: run backend tests here
+          node server.js &  # start the server in background
+
+      # ✅ Build Frontend
+      - name: Install and Build Frontend
+        run: |
+          cd green-dev-dashboard
+          npm install
+          npm run build
+
+      - name: Record End Time
+        id: end
+        run: echo "time=$(date +%s)" >> $GITHUB_OUTPUT
+
+      - name: Calculate Duration
+        id: duration
+        run: |
+          start=${{ steps.start.outputs.time }}
+          end=${{ steps.end.outputs.time }}
+          echo "duration=$((end - start))" >> $GITHUB_OUTPUT
+
+      - name: Send Data to Green Dev Backend
+        run: |
+          curl -X POST http://18.185.23.135:3000/api/green-metrics \
+            -H "Content-Type: application/json" \
+            -d '{
+              "repo": "${{ github.repository }}",
+              "branch": "${{ github.ref_name }}",
+              "commit": "${{ github.sha }}",
+              "duration": ${{ steps.duration.outputs.duration }},
+              "runner_type": "${{ runner.os }}"
+            }'
+

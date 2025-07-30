@@ -38,7 +38,7 @@ export default function CarbonChart({ data }) {
           <Tooltip
             formatter={(value, name) => [
               value,
-              name === 'co2' ? 'CO₂ (g)' : 'Energy (kWh)',
+              name === 'CO₂ Emissions' ? 'CO₂ (g)' : 'Energy (kWh)',
             ]}
             labelFormatter={(timestamp) => new Date(timestamp).toLocaleString()}
           />
