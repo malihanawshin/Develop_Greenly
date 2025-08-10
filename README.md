@@ -1,7 +1,7 @@
 # Green Dev Dashboard 🌱 
 
-This project visualizes the carbon footprint of software development activities, helping developers and teams make more sustainable choices. It collects green software metrics (like CO₂ emissions, energy consumption etc.) and displays them in an interactive dashboard. 
-In this project, CO2 emission is estimated using simplified version of Software Carbon Intensity (SCI) specification by Green Software Foundation (GSF).
+This project visualizes the carbon footprint of software development activities, helping developers and teams make more sustainable choices. It collects data from **GitHub Actions**, calculates green software metrics (**CO₂ emissions, energy consumption**), and displays them in an interactive dashboard. 
+In this project, CO2 emission is estimated using simplified version of **Software Carbon Intensity** (SCI) specification by **Green Software Foundation** (GSF). The dashboard is currently hosted on AWS EC2, check out http://18.185.23.135/.
 
 ## Features
 
