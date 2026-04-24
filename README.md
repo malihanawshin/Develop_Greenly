@@ -10,6 +10,7 @@ In this project, CO2 emission is estimated using simplified version of **Softwar
   * Repository name
   * Commit hash
   * Duration of run
+
   * Energy consumed
   * Estimated CO₂ emissions
   * Timestamp of the activity
@@ -22,8 +23,11 @@ In this project, CO2 emission is estimated using simplified version of **Softwar
 * **Backend**: Node.js / Express (or compatible) serving `/api/green-metrics`
 * **Tunneling**: Ngrok (used for public API access during development)
 
+## Screenshot
 
-<img width="686" height="387" alt="Screenshot 2025-10-17 at 6 03 41 PM" src="https://github.com/user-attachments/assets/a94037e6-0c15-4127-82f4-8519464d3e10" />
+<img width="1117" height="570" alt="Screenshot 2026-04-24 at 11 23 11 AM" src="https://github.com/user-attachments/assets/482064bc-3c40-4cef-8e56-83df28a8dbce" />
+
+<!-- <img width="1166" height="573" alt="Screenshot 2026-04-24 at 11 33 08 AM" src="https://github.com/user-attachments/assets/2fd43409-a561-4883-a6f2-54f2746518c5" /> -->
 
 
 ## To Get Started
