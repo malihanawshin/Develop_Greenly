@@ -8,7 +8,13 @@ const PORT = 3000;
 //temporary storage (replace with DB later)
 let metrics = [];
 
-app.use(cors());
+//app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:5173', 'https://a597fa73bd7e.ngrok-free.app'],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
 app.use(express.json());
 
 //emission estimated using simplified version of Software Carbon Intensity (SCI) specification by Green Software Foundation (GSF)

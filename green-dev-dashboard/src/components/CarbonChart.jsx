@@ -14,9 +14,13 @@ export default function CarbonChart({ data }) {
     timestamp: new Date(item.timestamp).getTime(),
   }));
 
+  // extract repo name from first item
+  const repoName = formattedData[0].repo || 'Unknown Repository';
+
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4">CO₂ Emissions and Energy Usage</h2>
+      <h2 className="text-xl font-semibold mb-1">Repository: {repoName}</h2>
+      <h3 className="text-lg font-medium mb-4">CO₂ Emissions and Energy Usage</h3>
       <ResponsiveContainer width="100%" height={400}>
         <LineChart data={formattedData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" />
