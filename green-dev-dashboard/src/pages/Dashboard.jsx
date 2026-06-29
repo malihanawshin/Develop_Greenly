@@ -10,7 +10,7 @@ export default function Dashboard() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('http://18.185.23.135:3000/api/green-metrics', {
+      const response = await fetch('/api/green-metrics', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',

@@ -44,9 +44,18 @@ jobs:
           echo "duration=$((end - start))" >> $GITHUB_OUTPUT
 
       - name: Send Data to Green Dev Backend
+        env:
+          GREEN_METRICS_URL: ${{ secrets.GREEN_METRICS_URL }}
+          GREEN_METRICS_TOKEN: ${{ secrets.GREEN_METRICS_TOKEN }}
         run: |
-          curl -X POST http://a597fa73bd7e.ngrok-free.app/api/green-metrics \
+          if [ -z "$GREEN_METRICS_URL" ]; then
+            echo "GREEN_METRICS_URL secret is not set. Skipping metrics upload."
+            exit 0
+          fi
+
+          curl -X POST "$GREEN_METRICS_URL" \
             -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $GREEN_METRICS_TOKEN" \
             -d '{
               "repo": "${{ github.repository }}",
               "branch": "${{ github.ref_name }}",
@@ -54,4 +63,3 @@ jobs:
               "duration": ${{ steps.duration.outputs.duration }},
               "runner_type": "${{ runner.os }}"
             }'
-

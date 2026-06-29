@@ -15,13 +15,14 @@ In this project, CO2 emission is estimated using simplified version of **Softwar
   * Estimated CO₂ emissions
   * Timestamp of the activity
 * Clean and minimal UI built with **React**
-* API endpoint served via a **Node.js** or compatible backend (local or tunneled using **ngrok**)
+* API endpoint served via a **Node.js** or compatible backend
 
 ## Tech Stack
 
 * **Frontend**: React + Tailwind CSS
 * **Backend**: Node.js / Express (or compatible) serving `/api/green-metrics`
-* **Tunneling**: Ngrok (used for public API access during development)
+* **Tunneling**: Ngrok (used when GitHub Actions needs to send data to a local backend)
+* **Deployment**: Docker / AWS EC2-ready setup
 
 ## Screenshot
 
@@ -61,19 +62,37 @@ Example:
 node server.js
 ```
 
-### 5. Tunnel with Ngrok (optional)
+### 5. Connect GitHub Actions to the local backend with Ngrok
 
-To allow frontend access to a locally running API server:
+The frontend can read from the local backend directly through the Vite proxy. Ngrok is only needed when a GitHub-hosted workflow has to POST metrics into your local machine.
+
+Start the backend:
+
+```bash
+cd green-dev-backend
+npm start
+```
+
+In another terminal, expose the backend:
 
 ```bash
 npx ngrok http 3000
 ```
 
-Update your `fetch()` URL in `Dashboard.jsx` with the generated ngrok URL:
+Then add or update these GitHub repository secrets in the project whose workflow sends metrics:
 
-```js
-const response = await fetch('https://your-ngrok-url.ngrok-free.app/api/green-metrics');
+```text
+GREEN_METRICS_URL=https://your-ngrok-url.ngrok-free.app/api/green-metrics
+GREEN_METRICS_TOKEN=your-shared-token
 ```
+
+When running the backend with token protection enabled, use the same token locally:
+
+```bash
+METRICS_API_TOKEN=your-shared-token npm start
+```
+
+For a stable deployment, use a hosted backend URL instead of ngrok and keep the same `GREEN_METRICS_URL` secret.
 ---
 
 ## Sample Response
@@ -96,4 +115,3 @@ const response = await fetch('https://your-ngrok-url.ngrok-free.app/api/green-me
 ## License
 
 This project is under the [MIT License](LICENSE).
-

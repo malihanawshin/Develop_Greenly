@@ -5,6 +5,8 @@ services:
     build: ./green-dev-backend
     ports:
       - "3000:3000"
+    environment:
+      - HOST=0.0.0.0
     container_name: green-backend
     restart: unless-stopped
 
