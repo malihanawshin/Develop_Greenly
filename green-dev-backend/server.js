@@ -1,6 +1,8 @@
 // server.js
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -10,9 +12,27 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,ht
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+const Database = require('better-sqlite3');
 
-//temporary storage (replace with DB later)
-let metrics = [];
+const DB_PATH = process.env.DB_PATH || './data/green-metrics.db';
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+const db = new Database(DB_PATH);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    repo TEXT NOT NULL,
+    branch TEXT,
+    commit_hash TEXT NOT NULL,
+    duration INTEGER NOT NULL,
+    runner_type TEXT,
+    energy REAL NOT NULL,
+    co2 REAL NOT NULL,
+    timestamp TEXT NOT NULL
+  )
+`);
+
+const getMetricCount = () => db.prepare('SELECT COUNT(*) AS count FROM metrics').get().count;
 
 app.use(cors({
   origin: allowedOrigins,
@@ -29,7 +49,7 @@ app.get('/.well-known/appspecific/com.chrome.devtools.json', (req, res) => {
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    metricCount: metrics.length,
+    metricCount: getMetricCount(),
     tokenProtection: Boolean(METRICS_API_TOKEN),
   });
 });
@@ -82,14 +102,37 @@ app.post('/api/green-metrics', (req, res) => {
     timestamp: new Date().toISOString(),
   };
 
-  metrics.push(entry);
-  console.log(`[metrics] stored ${repo}@${commit.slice(0, 7)}; total metrics: ${metrics.length}`);
+  db.prepare(`
+  INSERT INTO metrics (
+    repo, branch, commit_hash, duration, runner_type, energy, co2, timestamp
+  )
+  VALUES (
+    @repo, @branch, @commit, @duration, @runner_type, @energy, @co2, @timestamp
+  )
+`).run(entry);
+
+  console.log(`[metrics] stored ${repo}@${commit.slice(0, 7)}; total metrics: ${getMetricCount()}`);
   res.json({ message: 'Data received', data: entry });
 });
 
 // return metrics to dashboard
 app.get('/api/green-metrics', (req, res) => {
-  res.json(metrics.slice(-20)); // return latest 20 entries
+  const rows = db.prepare(`
+    SELECT
+      repo,
+      branch,
+      commit_hash AS "commit",
+      duration,
+      runner_type,
+      energy,
+      co2,
+      timestamp
+    FROM metrics
+    ORDER BY timestamp DESC
+    LIMIT 20
+  `).all();
+
+  res.json(rows.reverse());
 });
 
 const server = app.listen(PORT, HOST, () => {
