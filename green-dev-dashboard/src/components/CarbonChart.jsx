@@ -14,9 +14,6 @@ export default function CarbonChart({ data }) {
     timestamp: new Date(item.timestamp).getTime(),
   }));
 
-  // extract repo name from first item
-  const repoName = formattedData[0].repo || 'Unknown Repository';
-
   return (
     <div>
       <h3 className="text-lg font-medium mb-4">CO₂ Emissions and Energy Usage</h3>

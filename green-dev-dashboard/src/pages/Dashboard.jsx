@@ -41,12 +41,67 @@ const co2Level = (co2) => {
   return 'high';
 };
 
-function buildRepoSummary(metrics) {
-  const summaries = new Map();
+function metricTotals(run) {
+  return {
+    duration: Number(run?.duration || 0),
+    energy: Number(run?.energy || 0),
+    co2: Number(run?.co2 || 0),
+  };
+}
+
+function buildCommitGroups(metrics) {
+  const groups = new Map();
 
   metrics.forEach((run) => {
-    const existing = summaries.get(run.repo) || {
+    const key = `${run.repo || 'unknown'}::${run.commit || 'unknown'}`;
+    const existing = groups.get(key) || {
+      key,
       repo: run.repo,
+      branch: run.branch,
+      commit: run.commit,
+      runner_type: run.runner_type,
+      timestamp: run.timestamp,
+      phases: {},
+      totalDuration: 0,
+      totalEnergy: 0,
+      totalCo2: 0,
+    };
+
+    const metricType = run.metric_type || 'ci_build';
+    existing.phases[metricType] = run;
+
+    if (new Date(run.timestamp) > new Date(existing.timestamp)) {
+      existing.timestamp = run.timestamp;
+    }
+
+    existing.branch = existing.branch || run.branch;
+    existing.runner_type = existing.runner_type || run.runner_type;
+    groups.set(key, existing);
+  });
+
+  return Array.from(groups.values())
+    .map((group) => {
+      const phaseValues = Object.values(group.phases);
+      const totalDuration = phaseValues.reduce((sum, run) => sum + Number(run.duration || 0), 0);
+      const totalEnergy = phaseValues.reduce((sum, run) => sum + Number(run.energy || 0), 0);
+      const totalCo2 = phaseValues.reduce((sum, run) => sum + Number(run.co2 || 0), 0);
+
+      return {
+        ...group,
+        totalDuration,
+        totalEnergy,
+        totalCo2,
+      };
+    })
+    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+}
+
+function buildRepoSummary(commitGroups) {
+  const summaries = new Map();
+
+  commitGroups.forEach((group) => {
+    const existing = summaries.get(group.repo) || {
+      repo: group.repo,
       runs: 0,
       totalCo2: 0,
       totalEnergy: 0,
@@ -55,25 +110,22 @@ function buildRepoSummary(metrics) {
       worstRun: null,
     };
 
-    const co2 = Number(run.co2 || 0);
-    const energy = Number(run.energy || 0);
-    const duration = Number(run.duration || 0);
-    const timestamp = new Date(run.timestamp).getTime();
+    const timestamp = new Date(group.timestamp).getTime();
 
     existing.runs += 1;
-    existing.totalCo2 += co2;
-    existing.totalEnergy += energy;
-    existing.totalDuration += duration;
+    existing.totalCo2 += group.totalCo2;
+    existing.totalEnergy += group.totalEnergy;
+    existing.totalDuration += group.totalDuration;
 
     if (!existing.latestRun || timestamp > new Date(existing.latestRun.timestamp).getTime()) {
-      existing.latestRun = run;
+      existing.latestRun = group;
     }
 
-    if (!existing.worstRun || co2 > Number(existing.worstRun.co2 || 0)) {
-      existing.worstRun = run;
+    if (!existing.worstRun || group.totalCo2 > Number(existing.worstRun.totalCo2 || 0)) {
+      existing.worstRun = group;
     }
 
-    summaries.set(run.repo, existing);
+    summaries.set(group.repo, existing);
   });
 
   return Array.from(summaries.values())
@@ -122,38 +174,35 @@ export default function Dashboard() {
     fetchMetrics();
   }, []);
 
-  const sortedMetrics = useMemo(
-    () => [...metrics].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)),
-    [metrics],
-  );
+  const commitGroups = useMemo(() => buildCommitGroups(metrics), [metrics]);
 
-  const repoSummary = useMemo(() => buildRepoSummary(metrics), [metrics]);
+  const repoSummary = useMemo(() => buildRepoSummary(commitGroups), [commitGroups]);
 
   const totals = useMemo(() => {
-    const totalCo2 = metrics.reduce((sum, run) => sum + Number(run.co2 || 0), 0);
-    const totalEnergy = metrics.reduce((sum, run) => sum + Number(run.energy || 0), 0);
-    const totalDuration = metrics.reduce((sum, run) => sum + Number(run.duration || 0), 0);
+    const totalCo2 = commitGroups.reduce((sum, group) => sum + group.totalCo2, 0);
+    const totalEnergy = commitGroups.reduce((sum, group) => sum + group.totalEnergy, 0);
+    const totalDuration = commitGroups.reduce((sum, group) => sum + group.totalDuration, 0);
 
     return {
       totalCo2,
       totalEnergy,
-      avgDuration: metrics.length ? totalDuration / metrics.length : 0,
-      runCount: metrics.length,
+      avgDuration: commitGroups.length ? totalDuration / commitGroups.length : 0,
+      runCount: commitGroups.length,
       repoCount: repoSummary.length,
-      worstRun: metrics.reduce((worst, run) => (
-        !worst || Number(run.co2 || 0) > Number(worst.co2 || 0) ? run : worst
+      worstRun: commitGroups.reduce((worst, group) => (
+        !worst || group.totalCo2 > Number(worst.totalCo2 || 0) ? group : worst
       ), null),
-      latestRun: metrics.reduce((latest, run) => (
-        !latest || new Date(run.timestamp) > new Date(latest.timestamp) ? run : latest
+      latestRun: commitGroups.reduce((latest, group) => (
+        !latest || new Date(group.timestamp) > new Date(latest.timestamp) ? group : latest
       ), null),
     };
-  }, [metrics, repoSummary.length]);
+  }, [commitGroups, repoSummary.length]);
 
-  const trendData = sortedMetrics.map((run, index) => ({
-    ...run,
-    label: `${index + 1}. ${shortRepo(run.repo)}`,
-    co2: Number(run.co2 || 0),
-    energy: Number(run.energy || 0),
+  const trendData = commitGroups.map((group, index) => ({
+    ...group,
+    label: `${index + 1}. ${shortRepo(group.repo)}`,
+    co2: group.totalCo2,
+    energy: group.totalEnergy,
   }));
 
   const repoChartData = repoSummary.map((summary) => ({
@@ -216,7 +265,7 @@ export default function Dashboard() {
             <article className="kpi-card">
               <span>Tracked Repos</span>
               <strong>{totals.repoCount}</strong>
-              <small>{totals.runCount} workflow runs</small>
+              <small>{totals.runCount} commit groups</small>
             </article>
           </section>
 
@@ -225,7 +274,7 @@ export default function Dashboard() {
               <div className="panel-heading">
                 <div>
                   <p className="eyebrow">Trend</p>
-                  <h2>CO2 emissions across recent runs</h2>
+                  <h2>Total CO2 across recent commits</h2>
                 </div>
                 <span className="model-pill">SCI-inspired estimate</span>
               </div>
@@ -285,9 +334,9 @@ export default function Dashboard() {
             <article className="insight-panel">
               <p className="eyebrow">Highest build cost</p>
               <h2>{shortRepo(totals.worstRun?.repo)}</h2>
-              <div className="highlight-number">{formatNumber(totals.worstRun?.co2, 2)}g CO2</div>
+              <div className="highlight-number">{formatNumber(totals.worstRun?.totalCo2, 2)}g CO2</div>
               <p className="muted">
-                {formatDuration(totals.worstRun?.duration)} on {totals.worstRun?.branch || 'unknown branch'} ·{' '}
+                {formatDuration(totals.worstRun?.totalDuration)} on {totals.worstRun?.branch || 'unknown branch'} ·{' '}
                 {shortCommit(totals.worstRun?.commit)}
               </p>
             </article>
@@ -297,7 +346,7 @@ export default function Dashboard() {
               <h2>{shortRepo(totals.latestRun?.repo)}</h2>
               <div className="highlight-number">{formatTimestamp(totals.latestRun?.timestamp)}</div>
               <p className="muted">
-                {formatNumber(totals.latestRun?.energy, 4)} kWh · {formatNumber(totals.latestRun?.co2, 2)}g CO2
+                {formatNumber(totals.latestRun?.totalEnergy, 4)} kWh · {formatNumber(totals.latestRun?.totalCo2, 2)}g CO2
               </p>
             </article>
 
@@ -341,7 +390,7 @@ export default function Dashboard() {
                     </div>
                     <div>
                       <dt>Worst run</dt>
-                      <dd>{formatNumber(summary.worstRun?.co2, 2)}g</dd>
+                      <dd>{formatNumber(summary.worstRun?.totalCo2, 2)}g</dd>
                     </div>
                   </dl>
                 </article>
@@ -353,7 +402,7 @@ export default function Dashboard() {
             <div className="panel-heading table-heading">
               <div>
                 <p className="eyebrow">Recent workflow runs</p>
-                <h2>Raw CI metrics</h2>
+                <h2>Commit-level build and runtime costs</h2>
               </div>
               <code>GET /api/green-metrics</code>
             </div>
@@ -365,34 +414,63 @@ export default function Dashboard() {
                     <th>Branch</th>
                     <th>Commit</th>
                     <th>Runner</th>
-                    <th>Duration</th>
-                    <th>Energy</th>
-                    <th>CO2</th>
+                    <th>Build</th>
+                    <th>Runtime</th>
+                    <th>Total</th>
                     <th>Timestamp</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {[...metrics].reverse().map((run) => (
-                    <tr key={`${run.repo}-${run.commit}-${run.timestamp}`}>
-                      <td>
-                        <strong>{shortRepo(run.repo)}</strong>
-                        <span>{run.repo}</span>
-                      </td>
-                      <td>{run.branch || 'unknown'}</td>
-                      <td>
-                        <code>{shortCommit(run.commit)}</code>
-                      </td>
-                      <td>{run.runner_type || 'unknown'}</td>
-                      <td className="numeric">{formatDuration(run.duration)}</td>
-                      <td className="numeric">{formatNumber(run.energy, 4)}</td>
-                      <td>
-                        <span className={`co2-pill ${co2Level(Number(run.co2 || 0))}`}>
-                          {formatNumber(run.co2, 2)}g
-                        </span>
-                      </td>
-                      <td>{formatTimestamp(run.timestamp)}</td>
-                    </tr>
-                  ))}
+                  {[...commitGroups].reverse().map((group) => {
+                    const build = metricTotals(group.phases.ci_build);
+                    const runtime = metricTotals(group.phases.runtime_smoke_test);
+
+                    return (
+                      <tr key={group.key}>
+                        <td>
+                          <strong>{shortRepo(group.repo)}</strong>
+                          <span>{group.repo}</span>
+                        </td>
+                        <td>{group.branch || 'unknown'}</td>
+                        <td>
+                          <code>{shortCommit(group.commit)}</code>
+                        </td>
+                        <td>{group.runner_type || 'unknown'}</td>
+                        <td>
+                          {group.phases.ci_build ? (
+                            <div className="metric-stack">
+                              <strong>{formatDuration(build.duration)}</strong>
+                              <span>{formatNumber(build.energy, 4)} kWh</span>
+                              <span>{formatNumber(build.co2, 2)}g CO2</span>
+                            </div>
+                          ) : (
+                            <span className="missing-metric">Not captured</span>
+                          )}
+                        </td>
+                        <td>
+                          {group.phases.runtime_smoke_test ? (
+                            <div className="metric-stack">
+                              <strong>{formatDuration(runtime.duration)}</strong>
+                              <span>{formatNumber(runtime.energy, 4)} kWh</span>
+                              <span>{formatNumber(runtime.co2, 2)}g CO2</span>
+                            </div>
+                          ) : (
+                            <span className="missing-metric">Not captured</span>
+                          )}
+                        </td>
+                        <td>
+                          <div className="metric-stack total">
+                            <strong>{formatDuration(group.totalDuration)}</strong>
+                            <span>{formatNumber(group.totalEnergy, 4)} kWh</span>
+                            <span className={`co2-pill ${co2Level(group.totalCo2)}`}>
+                              {formatNumber(group.totalCo2, 2)}g
+                            </span>
+                          </div>
+                        </td>
+                        <td>{formatTimestamp(group.timestamp)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -393,7 +393,45 @@ td code {
   text-align: right;
 }
 
-.co2-pill {
+.metric-stack {
+  display: grid;
+  gap: 3px;
+  min-width: 112px;
+}
+
+.metric-stack strong {
+  display: block;
+  color: #1a2e0f;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+}
+
+.metric-stack span {
+  display: block;
+  color: #77786f;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.metric-stack.total strong {
+  color: #27500a;
+}
+
+.missing-metric {
+  display: inline-flex;
+  width: fit-content;
+  padding: 3px 8px;
+  border: 1px solid #d3d1c7;
+  border-radius: 999px;
+  color: #77786f;
+  background: #f1efe8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.co2-pill,
+.metric-stack .co2-pill {
   width: fit-content;
   padding: 3px 8px;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
