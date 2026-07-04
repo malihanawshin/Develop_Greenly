@@ -19,7 +19,6 @@ export default function CarbonChart({ data }) {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-1">Repository: {repoName}</h2>
       <h3 className="text-lg font-medium mb-4">CO₂ Emissions and Energy Usage</h3>
       <ResponsiveContainer width="100%" height={400}>
         <LineChart data={formattedData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>

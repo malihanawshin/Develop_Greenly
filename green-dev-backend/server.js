@@ -26,11 +26,17 @@ db.exec(`
     commit_hash TEXT NOT NULL,
     duration INTEGER NOT NULL,
     runner_type TEXT,
+    metric_type TEXT NOT NULL DEFAULT 'ci_build',
     energy REAL NOT NULL,
     co2 REAL NOT NULL,
     timestamp TEXT NOT NULL
   )
 `);
+
+const metricColumns = db.prepare('PRAGMA table_info(metrics)').all().map((column) => column.name);
+if (!metricColumns.includes('metric_type')) {
+  db.exec("ALTER TABLE metrics ADD COLUMN metric_type TEXT NOT NULL DEFAULT 'ci_build'");
+}
 
 const getMetricCount = () => db.prepare('SELECT COUNT(*) AS count FROM metrics').get().count;
 
@@ -82,7 +88,7 @@ app.post('/api/green-metrics', (req, res) => {
     }
   }
 
-  const { repo, branch, commit, duration, runner_type } = req.body;
+  const { repo, branch, commit, duration, runner_type, metric_type = 'ci_build' } = req.body;
 
   if (!repo || !commit || !duration) {
     console.warn('[metrics] rejected upload: missing required fields', req.body);
@@ -97,6 +103,7 @@ app.post('/api/green-metrics', (req, res) => {
     commit,
     duration,
     runner_type,
+    metric_type,
     energy: parseFloat(energyKWh),
     co2: parseFloat(co2),
     timestamp: new Date().toISOString(),
@@ -104,14 +111,14 @@ app.post('/api/green-metrics', (req, res) => {
 
   db.prepare(`
   INSERT INTO metrics (
-    repo, branch, commit_hash, duration, runner_type, energy, co2, timestamp
+    repo, branch, commit_hash, duration, runner_type, metric_type, energy, co2, timestamp
   )
   VALUES (
-    @repo, @branch, @commit, @duration, @runner_type, @energy, @co2, @timestamp
+    @repo, @branch, @commit, @duration, @runner_type, @metric_type, @energy, @co2, @timestamp
   )
 `).run(entry);
 
-  console.log(`[metrics] stored ${repo}@${commit.slice(0, 7)}; total metrics: ${getMetricCount()}`);
+  console.log(`[metrics] stored ${metric_type} ${repo}@${commit.slice(0, 7)}; total metrics: ${getMetricCount()}`);
   res.json({ message: 'Data received', data: entry });
 });
 
@@ -124,6 +131,7 @@ app.get('/api/green-metrics', (req, res) => {
       commit_hash AS "commit",
       duration,
       runner_type,
+      metric_type,
       energy,
       co2,
       timestamp
