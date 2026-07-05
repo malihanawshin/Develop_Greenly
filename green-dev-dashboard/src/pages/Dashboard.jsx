@@ -408,6 +408,16 @@ export default function Dashboard() {
             </div>
             <div className="table-wrap">
               <table>
+                <colgroup>
+                  <col className="col-repository" />
+                  <col className="col-branch" />
+                  <col className="col-commit" />
+                  <col className="col-runner" />
+                  <col className="col-metric" />
+                  <col className="col-metric" />
+                  <col className="col-metric" />
+                  <col className="col-time" />
+                </colgroup>
                 <thead>
                   <tr>
                     <th>Repository</th>
@@ -427,7 +437,7 @@ export default function Dashboard() {
 
                     return (
                       <tr key={group.key}>
-                        <td>
+                        <td className="repository-cell">
                           <strong>{shortRepo(group.repo)}</strong>
                           <span>{group.repo}</span>
                         </td>

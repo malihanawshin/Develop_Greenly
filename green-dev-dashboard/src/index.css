@@ -340,7 +340,25 @@ table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  min-width: 920px;
+  min-width: 1040px;
+}
+
+.col-repository {
+  width: 26%;
+}
+
+.col-branch,
+.col-commit,
+.col-runner {
+  width: 9%;
+}
+
+.col-metric {
+  width: 12%;
+}
+
+.col-time {
+  width: 11%;
 }
 
 th,
@@ -367,6 +385,18 @@ td {
 td strong {
   display: block;
   color: #1a2e0f;
+}
+
+.repository-cell {
+  min-width: 0;
+}
+
+.repository-cell strong,
+.repository-cell span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 td span {
