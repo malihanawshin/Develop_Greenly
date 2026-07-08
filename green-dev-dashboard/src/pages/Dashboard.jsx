@@ -25,6 +25,18 @@ const shortRepo = (repo = '') => repo.split('/').pop() || repo || 'Unknown';
 
 const shortCommit = (commit = '') => commit.slice(0, 7) || 'unknown';
 
+const phaseLabels = {
+  setup: 'Setup',
+  dependencies: 'Dependencies',
+  build: 'Build',
+  test: 'Tests',
+  runtime: 'Runtime',
+  deploy: 'Deploy',
+  other: 'Other',
+};
+
+const phaseOrder = ['setup', 'dependencies', 'build', 'test', 'runtime', 'deploy', 'other'];
+
 const formatTimestamp = (timestamp) => {
   if (!timestamp) return 'Unknown';
   return new Intl.DateTimeFormat('en', {
@@ -49,6 +61,48 @@ function metricTotals(run) {
   };
 }
 
+function sumMetrics(runs) {
+  return runs.reduce((totals, run) => ({
+    duration: totals.duration + Number(run.duration || 0),
+    energy: totals.energy + Number(run.energy || 0),
+    co2: totals.co2 + Number(run.co2 || 0),
+  }), { duration: 0, energy: 0, co2: 0 });
+}
+
+function normalizePhase(run) {
+  if (run.phase) return run.phase;
+  if (run.metric_type === 'runtime_smoke_test') return 'runtime';
+  return 'build';
+}
+
+function buildStepPhases(steps) {
+  const phases = new Map();
+
+  steps.forEach((step) => {
+    const phase = normalizePhase(step);
+    const existing = phases.get(phase) || {
+      phase,
+      label: phaseLabels[phase] || phaseLabels.other,
+      steps: [],
+      duration: 0,
+      energy: 0,
+      co2: 0,
+    };
+
+    existing.steps.push(step);
+    existing.duration += Number(step.duration || 0);
+    existing.energy += Number(step.energy || 0);
+    existing.co2 += Number(step.co2 || 0);
+    phases.set(phase, existing);
+  });
+
+  return Array.from(phases.values()).sort((a, b) => {
+    const aIndex = phaseOrder.indexOf(a.phase);
+    const bIndex = phaseOrder.indexOf(b.phase);
+    return (aIndex === -1 ? phaseOrder.length : aIndex) - (bIndex === -1 ? phaseOrder.length : bIndex);
+  });
+}
+
 function buildCommitGroups(metrics) {
   const groups = new Map();
 
@@ -62,13 +116,22 @@ function buildCommitGroups(metrics) {
       runner_type: run.runner_type,
       timestamp: run.timestamp,
       phases: {},
+      steps: [],
       totalDuration: 0,
       totalEnergy: 0,
       totalCo2: 0,
     };
 
     const metricType = run.metric_type || 'ci_build';
-    existing.phases[metricType] = run;
+    if (metricType === 'ci_step' || run.step_name) {
+      existing.steps.push({
+        ...run,
+        phase: normalizePhase(run),
+        step_name: run.step_name || metricType,
+      });
+    } else {
+      existing.phases[metricType] = run;
+    }
 
     if (new Date(run.timestamp) > new Date(existing.timestamp)) {
       existing.timestamp = run.timestamp;
@@ -81,16 +144,24 @@ function buildCommitGroups(metrics) {
 
   return Array.from(groups.values())
     .map((group) => {
-      const phaseValues = Object.values(group.phases);
-      const totalDuration = phaseValues.reduce((sum, run) => sum + Number(run.duration || 0), 0);
-      const totalEnergy = phaseValues.reduce((sum, run) => sum + Number(run.energy || 0), 0);
-      const totalCo2 = phaseValues.reduce((sum, run) => sum + Number(run.co2 || 0), 0);
+      const stepPhases = buildStepPhases(group.steps);
+      const hasStepMetrics = group.steps.length > 0;
+      const legacyValues = Object.values(group.phases);
+      const nonRuntimeSteps = group.steps.filter((step) => normalizePhase(step) !== 'runtime');
+      const runtimeSteps = group.steps.filter((step) => normalizePhase(step) === 'runtime');
+      const buildTotals = hasStepMetrics ? sumMetrics(nonRuntimeSteps) : metricTotals(group.phases.ci_build);
+      const runtimeTotals = hasStepMetrics ? sumMetrics(runtimeSteps) : metricTotals(group.phases.runtime_smoke_test);
+      const groupTotals = hasStepMetrics ? sumMetrics(group.steps) : sumMetrics(legacyValues);
 
       return {
         ...group,
-        totalDuration,
-        totalEnergy,
-        totalCo2,
+        hasStepMetrics,
+        stepPhases,
+        buildTotals,
+        runtimeTotals,
+        totalDuration: groupTotals.duration,
+        totalEnergy: groupTotals.energy,
+        totalCo2: groupTotals.co2,
       };
     })
     .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
@@ -211,6 +282,11 @@ export default function Dashboard() {
     energy: Number(summary.totalEnergy.toFixed(4)),
     runs: summary.runs,
   }));
+
+  const stepEnabledGroups = [...commitGroups]
+    .filter((group) => group.hasStepMetrics)
+    .reverse()
+    .slice(0, 4);
 
   return (
     <main className="dashboard-shell">
@@ -398,13 +474,77 @@ export default function Dashboard() {
             </div>
           </section>
 
+          <section className="step-breakdown-panel">
+            <div className="panel-heading table-heading">
+              <div>
+                <p className="eyebrow">Step-level CI breakdown</p>
+                <h2>Where workflow energy is spent</h2>
+              </div>
+            </div>
+            {stepEnabledGroups.length > 0 ? (
+              <div className="step-breakdown-grid">
+                {stepEnabledGroups.map((group) => (
+                  <article className="step-breakdown-card" key={`steps-${group.key}`}>
+                    <div className="step-card-header">
+                      <div>
+                        <h3>{shortRepo(group.repo)}</h3>
+                        <p>{shortCommit(group.commit)} · {formatTimestamp(group.timestamp)}</p>
+                      </div>
+                      <span className={`co2-pill ${co2Level(group.totalCo2)}`}>
+                        {formatNumber(group.totalCo2, 2)}g
+                      </span>
+                    </div>
+                    <div className="phase-bars">
+                      {group.stepPhases.map((phase) => {
+                        const width = group.totalDuration
+                          ? Math.max((phase.duration / group.totalDuration) * 100, 4)
+                          : 0;
+
+                        return (
+                          <div className="phase-row" key={`${group.key}-${phase.phase}`}>
+                            <div className="phase-row-label">
+                              <strong>{phase.label}</strong>
+                              <span>{formatDuration(phase.duration)}</span>
+                            </div>
+                            <div className="phase-track" aria-hidden="true">
+                              <span style={{ width: `${width}%` }} />
+                            </div>
+                            <div className="phase-row-metrics">
+                              <span>{formatNumber(phase.energy, 4)} kWh</span>
+                              <span>{formatNumber(phase.co2, 2)}g CO2</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <details className="step-details">
+                      <summary>{group.steps.length} captured steps</summary>
+                      <ul>
+                        {group.steps.map((step) => (
+                          <li key={`${group.key}-${step.step_name}-${step.timestamp}`}>
+                            <span>{step.step_name}</span>
+                            <strong>{formatDuration(step.duration)}</strong>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="step-empty-state">
+                <strong>No step-level rows yet.</strong>
+                <span>Send metrics with metric_type "ci_step", plus step_name and phase, to unlock this breakdown.</span>
+              </div>
+            )}
+          </section>
+
           <section className="runs-panel">
             <div className="panel-heading table-heading">
               <div>
                 <p className="eyebrow">Recent workflow runs</p>
                 <h2>Commit-level build and runtime costs</h2>
               </div>
-              <code>GET /api/green-metrics</code>
             </div>
             <div className="table-wrap">
               <table>
@@ -432,8 +572,8 @@ export default function Dashboard() {
                 </thead>
                 <tbody>
                   {[...commitGroups].reverse().map((group) => {
-                    const build = metricTotals(group.phases.ci_build);
-                    const runtime = metricTotals(group.phases.runtime_smoke_test);
+                    const build = group.buildTotals;
+                    const runtime = group.runtimeTotals;
 
                     return (
                       <tr key={group.key}>
@@ -447,22 +587,24 @@ export default function Dashboard() {
                         </td>
                         <td>{group.runner_type || 'unknown'}</td>
                         <td>
-                          {group.phases.ci_build ? (
+                          {group.hasStepMetrics || group.phases.ci_build ? (
                             <div className="metric-stack">
                               <strong>{formatDuration(build.duration)}</strong>
                               <span>{formatNumber(build.energy, 4)} kWh</span>
                               <span>{formatNumber(build.co2, 2)}g CO2</span>
+                              {group.hasStepMetrics && <span>{group.steps.filter((step) => step.phase !== 'runtime').length} steps</span>}
                             </div>
                           ) : (
                             <span className="missing-metric">Not captured</span>
                           )}
                         </td>
                         <td>
-                          {group.phases.runtime_smoke_test ? (
+                          {(group.hasStepMetrics ? runtime.duration > 0 : group.phases.runtime_smoke_test) ? (
                             <div className="metric-stack">
                               <strong>{formatDuration(runtime.duration)}</strong>
                               <span>{formatNumber(runtime.energy, 4)} kWh</span>
                               <span>{formatNumber(runtime.co2, 2)}g CO2</span>
+                              {group.hasStepMetrics && <span>{group.steps.filter((step) => step.phase === 'runtime').length} steps</span>}
                             </div>
                           ) : (
                             <span className="missing-metric">Not captured</span>

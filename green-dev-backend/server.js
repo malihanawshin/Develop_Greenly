@@ -27,6 +27,8 @@ db.exec(`
     duration INTEGER NOT NULL,
     runner_type TEXT,
     metric_type TEXT NOT NULL DEFAULT 'ci_build',
+    step_name TEXT,
+    phase TEXT,
     energy REAL NOT NULL,
     co2 REAL NOT NULL,
     timestamp TEXT NOT NULL
@@ -36,6 +38,12 @@ db.exec(`
 const metricColumns = db.prepare('PRAGMA table_info(metrics)').all().map((column) => column.name);
 if (!metricColumns.includes('metric_type')) {
   db.exec("ALTER TABLE metrics ADD COLUMN metric_type TEXT NOT NULL DEFAULT 'ci_build'");
+}
+if (!metricColumns.includes('step_name')) {
+  db.exec('ALTER TABLE metrics ADD COLUMN step_name TEXT');
+}
+if (!metricColumns.includes('phase')) {
+  db.exec('ALTER TABLE metrics ADD COLUMN phase TEXT');
 }
 
 const getMetricCount = () => db.prepare('SELECT COUNT(*) AS count FROM metrics').get().count;
@@ -88,22 +96,35 @@ app.post('/api/green-metrics', (req, res) => {
     }
   }
 
-  const { repo, branch, commit, duration, runner_type, metric_type = 'ci_build' } = req.body;
-
-  if (!repo || !commit || !duration) {
-    console.warn('[metrics] rejected upload: missing required fields', req.body);
-    return res.status(400).json({ error: 'Missing required fields' });
-  }
-
-  const { energyKWh, co2 } = estimateEmissions(duration);
-
-  const entry = {
+  const {
     repo,
     branch,
     commit,
     duration,
     runner_type,
+    metric_type = 'ci_build',
+    step_name = null,
+    phase = null,
+  } = req.body;
+
+  const durationSeconds = Number(duration);
+
+  if (!repo || !commit || !Number.isFinite(durationSeconds) || durationSeconds < 0) {
+    console.warn('[metrics] rejected upload: missing required fields', req.body);
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  const { energyKWh, co2 } = estimateEmissions(durationSeconds);
+
+  const entry = {
+    repo,
+    branch,
+    commit,
+    duration: durationSeconds,
+    runner_type,
     metric_type,
+    step_name,
+    phase,
     energy: parseFloat(energyKWh),
     co2: parseFloat(co2),
     timestamp: new Date().toISOString(),
@@ -111,14 +132,15 @@ app.post('/api/green-metrics', (req, res) => {
 
   db.prepare(`
   INSERT INTO metrics (
-    repo, branch, commit_hash, duration, runner_type, metric_type, energy, co2, timestamp
+    repo, branch, commit_hash, duration, runner_type, metric_type, step_name, phase, energy, co2, timestamp
   )
   VALUES (
-    @repo, @branch, @commit, @duration, @runner_type, @metric_type, @energy, @co2, @timestamp
+    @repo, @branch, @commit, @duration, @runner_type, @metric_type, @step_name, @phase, @energy, @co2, @timestamp
   )
 `).run(entry);
 
-  console.log(`[metrics] stored ${metric_type} ${repo}@${commit.slice(0, 7)}; total metrics: ${getMetricCount()}`);
+  const metricLabel = step_name ? `${metric_type}/${step_name}` : metric_type;
+  console.log(`[metrics] stored ${metricLabel} ${repo}@${commit.slice(0, 7)}; total metrics: ${getMetricCount()}`);
   res.json({ message: 'Data received', data: entry });
 });
 
@@ -132,12 +154,14 @@ app.get('/api/green-metrics', (req, res) => {
       duration,
       runner_type,
       metric_type,
+      step_name,
+      phase,
       energy,
       co2,
       timestamp
     FROM metrics
     ORDER BY timestamp DESC
-    LIMIT 20
+    LIMIT 200
   `).all();
 
   res.json(rows.reverse());
