@@ -207,6 +207,136 @@ function buildRepoSummary(commitGroups) {
     .sort((a, b) => b.totalCo2 - a.totalCo2);
 }
 
+function buildRecommendations(commitGroups, repoSummary) {
+  const recommendations = [];
+  const stepEnabledGroups = commitGroups.filter((group) => group.hasStepMetrics);
+
+  if (repoSummary.length > 0) {
+    const highestImpactRepo = repoSummary[0];
+    recommendations.push({
+      key: `highest-impact-${highestImpactRepo.repo}`,
+      severity: 'high',
+      title: 'Start with the highest-impact repository',
+      repo: highestImpactRepo.repo,
+      message: `${shortRepo(highestImpactRepo.repo)} contributes the most estimated CI CO2 in the current dataset.`,
+      action: 'Review workflow triggers, dependency caching, and repeated build frequency for this repository first.',
+      evidence: `${formatNumber(highestImpactRepo.totalCo2, 2)}g CO2 across ${highestImpactRepo.runs} commit groups`,
+    });
+  }
+
+  const groupsByRepo = new Map();
+  commitGroups.forEach((group) => {
+    const groups = groupsByRepo.get(group.repo) || [];
+    groups.push(group);
+    groupsByRepo.set(group.repo, groups);
+  });
+
+  groupsByRepo.forEach((groups, repo) => {
+    const sortedGroups = [...groups].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const latest = sortedGroups[sortedGroups.length - 1];
+    const previous = sortedGroups[sortedGroups.length - 2];
+
+    if (groups.length >= 4) {
+      recommendations.push({
+        key: `frequent-runs-${repo}`,
+        severity: 'medium',
+        title: 'Frequent workflow runs detected',
+        repo,
+        message: `${shortRepo(repo)} has several recent CI measurements in the dashboard.`,
+        action: 'Add path filters so README-only or documentation-only changes do not trigger full build and runtime checks.',
+        evidence: `${groups.length} commit groups in the current API window`,
+      });
+    }
+
+    if (latest && !latest.hasStepMetrics) {
+      recommendations.push({
+        key: `missing-step-data-${repo}`,
+        severity: 'medium',
+        title: 'Add step-level measurement',
+        repo,
+        message: `${shortRepo(repo)} is still reporting aggregate build/runtime metrics only.`,
+        action: 'Send ci_step rows for dependency install, build, test, runtime, and deploy to locate the exact energy hotspot.',
+        evidence: 'No step_name or phase fields found for the latest commit group',
+      });
+    }
+
+    if (latest && !latest.hasStepMetrics && !latest.phases.runtime_smoke_test) {
+      recommendations.push({
+        key: `missing-runtime-${repo}`,
+        severity: 'low',
+        title: 'Runtime cost is not captured',
+        repo,
+        message: `${shortRepo(repo)} has no runtime smoke metric in the latest commit group.`,
+        action: 'Add a minimal smoke test that starts the app, checks one health or UI endpoint, and exits quickly.',
+        evidence: `Latest commit ${shortCommit(latest.commit)}`,
+      });
+    }
+
+    if (latest && previous && previous.totalDuration > 0 && latest.totalDuration > previous.totalDuration * 1.25) {
+      recommendations.push({
+        key: `duration-regression-${repo}-${latest.commit}`,
+        severity: 'high',
+        title: 'CI duration increased',
+        repo,
+        message: `${shortRepo(repo)} is slower than its previous measured commit.`,
+        action: 'Inspect dependency changes, build configuration changes, or newly added runtime checks in this commit.',
+        evidence: `${formatDuration(previous.totalDuration)} -> ${formatDuration(latest.totalDuration)}`,
+      });
+    }
+  });
+
+  stepEnabledGroups.forEach((group) => {
+    group.stepPhases.forEach((phase) => {
+      const share = group.totalDuration ? phase.duration / group.totalDuration : 0;
+
+      if (phase.phase === 'dependencies' && share >= 0.35) {
+        recommendations.push({
+          key: `dependency-heavy-${group.key}`,
+          severity: 'high',
+          title: 'Dependency installation dominates this workflow',
+          repo: group.repo,
+          message: `${phase.label} uses ${Math.round(share * 100)}% of the measured CI time for ${shortRepo(group.repo)}.`,
+          action: 'Enable package-manager caching and prefer clean installs only when the lockfile changes.',
+          evidence: `${formatDuration(phase.duration)} of ${formatDuration(group.totalDuration)} on ${shortCommit(group.commit)}`,
+        });
+      }
+
+      if (phase.phase === 'runtime' && share >= 0.3) {
+        recommendations.push({
+          key: `runtime-heavy-${group.key}`,
+          severity: 'medium',
+          title: 'Runtime smoke test is relatively expensive',
+          repo: group.repo,
+          message: `Runtime checks use ${Math.round(share * 100)}% of the measured CI time for ${shortRepo(group.repo)}.`,
+          action: 'Keep the smoke test, but check only the critical startup path and stop services immediately after success.',
+          evidence: `${formatDuration(phase.duration)} runtime on ${shortCommit(group.commit)}`,
+        });
+      }
+
+      if (phase.phase === 'build' && share >= 0.5) {
+        recommendations.push({
+          key: `build-heavy-${group.key}`,
+          severity: 'medium',
+          title: 'Build phase is the main energy driver',
+          repo: group.repo,
+          message: `Build steps use ${Math.round(share * 100)}% of the measured CI time for ${shortRepo(group.repo)}.`,
+          action: 'Check whether all build targets are needed on every push and consider splitting heavy checks by path.',
+          evidence: `${formatDuration(phase.duration)} build time on ${shortCommit(group.commit)}`,
+        });
+      }
+    });
+  });
+
+  const severityRank = { high: 0, medium: 1, low: 2 };
+  const uniqueRecommendations = Array.from(
+    new Map(recommendations.map((recommendation) => [recommendation.key, recommendation])).values(),
+  );
+
+  return uniqueRecommendations
+    .sort((a, b) => severityRank[a.severity] - severityRank[b.severity])
+    .slice(0, 6);
+}
+
 export default function Dashboard() {
   const [metrics, setMetrics] = useState([]);
   const [error, setError] = useState(null);
@@ -248,6 +378,11 @@ export default function Dashboard() {
   const commitGroups = useMemo(() => buildCommitGroups(metrics), [metrics]);
 
   const repoSummary = useMemo(() => buildRepoSummary(commitGroups), [commitGroups]);
+
+  const recommendations = useMemo(
+    () => buildRecommendations(commitGroups, repoSummary),
+    [commitGroups, repoSummary],
+  );
 
   const totals = useMemo(() => {
     const totalCo2 = commitGroups.reduce((sum, group) => sum + group.totalCo2, 0);
@@ -472,6 +607,45 @@ export default function Dashboard() {
                 </article>
               ))}
             </div>
+          </section>
+
+          <section className="recommendations-panel">
+            <div className="panel-heading table-heading">
+              <div>
+                <p className="eyebrow">Optimization recommendations</p>
+                <h2>Explainable CI energy actions</h2>
+              </div>
+              <span className="model-pill">Rule-based assistant</span>
+            </div>
+            {recommendations.length > 0 ? (
+              <div className="recommendation-grid">
+                {recommendations.map((recommendation) => (
+                  <article className={`recommendation-card ${recommendation.severity}`} key={recommendation.key}>
+                    <div className="recommendation-header">
+                      <span>{recommendation.severity}</span>
+                      <strong>{shortRepo(recommendation.repo)}</strong>
+                    </div>
+                    <h3>{recommendation.title}</h3>
+                    <p>{recommendation.message}</p>
+                    <dl>
+                      <div>
+                        <dt>Action</dt>
+                        <dd>{recommendation.action}</dd>
+                      </div>
+                      <div>
+                        <dt>Evidence</dt>
+                        <dd>{recommendation.evidence}</dd>
+                      </div>
+                    </dl>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="step-empty-state">
+                <strong>No recommendations yet.</strong>
+                <span>Collect more workflow metrics to reveal optimization opportunities.</span>
+              </div>
+            )}
           </section>
 
           <section className="step-breakdown-panel">

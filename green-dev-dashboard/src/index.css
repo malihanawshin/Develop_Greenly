@@ -158,6 +158,7 @@ h3 {
 .kpi-card,
 .insight-panel,
 .repo-table-panel,
+.recommendations-panel,
 .step-breakdown-panel,
 .runs-panel {
   border: 1px solid #c8ddb0;
@@ -268,6 +269,7 @@ h3 {
 }
 
 .repo-table-panel,
+.recommendations-panel,
 .step-breakdown-panel,
 .runs-panel {
   margin-bottom: 12px;
@@ -332,6 +334,112 @@ h3 {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 14px;
   font-weight: 800;
+}
+
+.recommendation-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+
+.recommendation-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid #e1eed4;
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: #fbfdf8;
+}
+
+.recommendation-card.high {
+  border-left-color: #b54708;
+}
+
+.recommendation-card.medium {
+  border-left-color: #98710f;
+}
+
+.recommendation-card.low {
+  border-left-color: #4f7fbc;
+}
+
+.recommendation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.recommendation-header span {
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #27500a;
+  background: #eaf3de;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.recommendation-card.high .recommendation-header span {
+  color: #8b2f0a;
+  background: #fae9dd;
+}
+
+.recommendation-card.medium .recommendation-header span {
+  color: #765407;
+  background: #faeeda;
+}
+
+.recommendation-card.low .recommendation-header span {
+  color: #28517f;
+  background: #e7f0fb;
+}
+
+.recommendation-header strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #5f5e5a;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recommendation-card h3 {
+  margin-bottom: 0;
+  line-height: 1.25;
+}
+
+.recommendation-card p {
+  margin-bottom: 0;
+  color: #4d5d40;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.recommendation-card dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.recommendation-card dt {
+  color: #77786f;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.recommendation-card dd {
+  margin: 3px 0 0;
+  color: #1a2e0f;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .step-breakdown-grid {
@@ -630,6 +738,7 @@ td code {
   .kpi-grid,
   .insight-grid,
   .repo-cards,
+  .recommendation-grid,
   .step-breakdown-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -649,6 +758,7 @@ td code {
   .kpi-grid,
   .insight-grid,
   .repo-cards,
+  .recommendation-grid,
   .step-breakdown-grid {
     grid-template-columns: 1fr;
   }
