@@ -436,7 +436,7 @@ export default function Dashboard() {
         </div>
         <div>
           <p className="eyebrow">CI/CD carbon observatory</p>
-          <h1>Green Dev Dashboard</h1>
+          <h1>Develop Greenly</h1>
           <p className="dashboard-subtitle">
             Repository-level build energy, CO2 emissions, and workflow run comparisons.
           </p>
