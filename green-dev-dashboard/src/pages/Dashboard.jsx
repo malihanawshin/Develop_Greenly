@@ -25,6 +25,10 @@ const shortRepo = (repo = '') => repo.split('/').pop() || repo || 'Unknown';
 
 const shortCommit = (commit = '') => commit.slice(0, 7) || 'unknown';
 
+const truncateEnd = (value = '', maxLength = 18) => (
+  value.length > maxLength ? `${value.slice(0, maxLength - 3)}...` : value
+);
+
 const phaseLabels = {
   setup: 'Setup',
   dependencies: 'Dependencies',
@@ -412,7 +416,8 @@ export default function Dashboard() {
   }));
 
   const repoChartData = repoSummary.map((summary) => ({
-    repo: shortRepo(summary.repo),
+    repo: truncateEnd(shortRepo(summary.repo)),
+    fullRepo: summary.repo,
     co2: Number(summary.totalCo2.toFixed(2)),
     energy: Number(summary.totalEnergy.toFixed(4)),
     runs: summary.runs,
@@ -532,8 +537,11 @@ export default function Dashboard() {
                   <BarChart data={repoChartData} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 4 }}>
                     <CartesianGrid stroke="#eef4e6" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(value) => `${value}g`} />
-                    <YAxis type="category" dataKey="repo" tick={{ fontSize: 11 }} width={88} />
-                    <Tooltip formatter={(value) => [`${formatNumber(value, 2)}g`, 'Total CO2']} />
+                    <YAxis type="category" dataKey="repo" tick={{ fontSize: 11 }} width={112} />
+                    <Tooltip
+                      formatter={(value) => [`${formatNumber(value, 2)}g`, 'Total CO2']}
+                      labelFormatter={(_, payload) => payload?.[0]?.payload?.fullRepo || ''}
+                    />
                     <Bar dataKey="co2" fill="#639922" radius={[0, 6, 6, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
