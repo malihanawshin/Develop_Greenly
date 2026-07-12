@@ -6,7 +6,7 @@ Develop Greenly is a software sustainability observatory for CI/CD workflows. It
 CO2 = workflow duration x estimated runner energy use x carbon intensity
 ```
 
-The dashboard is hosted on AWS EC2, available live at http://63.179.89.6/.
+The project is hosted on AWS EC2, available live at http://63.179.89.6/.
 
 ## Features
 
@@ -29,6 +29,10 @@ The dashboard is hosted on AWS EC2, available live at http://63.179.89.6/.
 - **Database**: SQLite with `better-sqlite3`
 - **CI Source**: GitHub Actions
 - **Deployment**: Docker Compose on AWS EC2
+
+## Screenshot
+
+![Screenshot](green-dev-dashboard/src/assets/Screenshot_dg.png)
 
 ## Architecture
 
